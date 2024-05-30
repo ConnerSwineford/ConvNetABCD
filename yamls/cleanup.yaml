@@ -1,0 +1,110 @@
+apiVersion: kubeflow.org/v2beta1
+kind: MPIJob
+metadata:
+  name: abcd-cleanup
+  namespace: default
+spec:
+  slotsPerWorker: 8
+  runPolicy:
+    cleanPodPolicy: Running
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+         spec:
+           volumes:
+           - name: mydir
+             hostPath:
+               path: /home/cswineford
+               type: Directory
+           - name: scratch
+             emptyDir: {}
+           hostIPC: true
+           containers:
+           - image: vault.habana.ai/gaudi-docker/1.11.0/ubuntu20.04/habanalabs/pytorch-installer-2.0.1:latest
+             name: u20-pytorch-installer-1-13-1-1-9-0-580
+#             imagePullPolicy: Always
+             volumeMounts:
+             - name: mydir
+               mountPath: /home/cswineford
+             - name: scratch
+               mountPath: /scratch
+             command: ["/bin/bash", "-c"]
+             args:
+             - >-
+
+               declare -xir NUMBER_OF_NODES=8;
+               declare -xir NUMBER_OF_DEVICES_PER_HLS=8;
+               declare -xir NUMBER_OF_DEVICES="$((NUMBER_OF_NODES * NUMBER_OF_DEVICES_PER_HLS))";
+
+               declare -xr HOME_DIR='/home/cswineford';
+               declare -xr MASTER_ADDR=$(mpirun --allow-run-as-root -n 1 hostname -i 2>/dev/null |tail -n 1);
+
+               export PYTHONPATH=/home/cswineford/.local/lib/python3.8/site-packages/:/usr/lib/habanalabs:$PYTHONPATH;
+               export HOME=/home/cswineford;
+
+               export OMP_NUM_THREADS=1;
+               declare -xr MPI_ROOT=${MPI_ROOT:-/opt/amazon/openmpi/};
+
+               hl-smi;
+               cd /home/cswineford;
+
+               export HABANA_LOGS=~/.habana_logs;
+               export ENABLE_CONSOLE=true;
+               export LOG_LEVEL_ALL=2;
+
+               sleep 5;
+               mpirun --allow-run-as-root  \
+                      --prefix ${MPI_ROOT} \
+                      -np 8 -bind-to core --map-by ppr:4:socket:PE=6 \
+                      -rank-by core --report-bindings \
+                      --tag-output \
+                      --merge-stderr-to-stdout \
+                      -x PYTHONPATH  \
+                      -x MASTER_ADDR \
+                      -x ENABLE_CONSOLE=True \
+                      -x LOG_LEVEL_ALL=5 \
+                      ./cleanup.sh
+    Worker:
+      replicas: 2
+      template:
+        spec:
+          tolerations:
+           - key: ""
+             operator: "Exists"
+             effect: "NoSchedule"
+          volumes:
+           - name: mydir
+             hostPath:
+               path: /home/cswineford
+               type: Directory
+           - name: datadir
+             hostPath:
+               path: /voyager/ceph/users/cswineford/
+               type: Directory
+           - name: scratch
+             emptyDir: {}
+          hostIPC: true
+          containers:
+          - image: vault.habana.ai/gaudi-docker/1.9.0/ubuntu20.04/habanalabs/pytorch-installer-1.13.1:1.9.0-580
+            name: u20-pytorch-installer-1-13-1-1-9-0-580
+#            imagePullPolicy: Always
+            resources:
+              limits:
+                habana.ai/gaudi: 8
+                cpu: 95
+                memory: 409Gi
+                hugepages-2Mi: 95000Mi
+              requests:
+                habana.ai/gaudi: 8
+                cpu: 95
+                memory: 409Gi
+                hugepages-2Mi: 95000Mi
+            volumeMounts:
+             - name: mydir
+               mountPath: /home/cswineford
+             - name: scratch
+               mountPath: /scratch
+            env:
+             - name: HOME
+               value: "/scratch"

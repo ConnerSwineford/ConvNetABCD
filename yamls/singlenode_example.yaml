@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Pod
+metadata:
+        name: abcd-singlenode-main
+spec:
+        restartPolicy: Never
+        tolerations:
+          - key: ""
+            operator: "Exists"
+            effect: "NoSchedule"
+        volumes:
+          - name: home
+            hostPath:
+              path: /home/cswineford/
+              type: Directory
+          - name: scratch
+            emptyDir: {}
+        containers:
+        - name: gaudi-container
+          image: vault.habana.ai/.../pytorch-installer-2.0.1:latest
+          command: ["/bin/sh", "-c"]
+          args: 
+           - >-
+             export HOME=/home/cswineford/;
+             hl-smi;
+             export LOG_LEVEL_ALL_PT=5;
+             export ENABLE_CONSOLE=true;
+             export LOG_LEVEL_ALL=5;
+             python3 test.py;
+          resources:
+            requests:
+               cpu: 95
+               memory: 90Gi
+               habana.ai/gaudi: 1
+               hugepages-2Mi: 20000Mi
+            limits:
+               cpu: 200
+               memory: 200Gi
+               habana.ai/gaudi: 1
+               hugepages-2Mi: 20000Mi
+          volumeMounts:
+            - name: home
+              mountPath: /home/cswineford
+            - name: scratch
+              mountPath: /scratch
+          workingDir: /home/cswineford/Kubernetes/interactive
