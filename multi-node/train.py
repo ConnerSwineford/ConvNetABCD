@@ -23,12 +23,11 @@ __license__ = 'MIT'
 ############################################################################
 ## Authors: Conner Swineford and Johanna Walker
 ## License: MIT License
-## Maintainer: Conner Swineford
 ## Email: cswineford@sdsu.edu
-## Status: Production
 ############################################################################
 
 
+# Argument parser setup for command line arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--train_data', type=str, help='Path to the csv of the training data')
 parser.add_argument('--batch_size', default=64, type=int, help='Number of subjects in one model iteration')
@@ -43,14 +42,18 @@ args = parser.parse_args()
 
 if __name__ == '__main__':
 
+  # Set the device to HPU (Habana Processing Unit)
   device = torch.device('hpu')
 
+  # Set the HPU lazy mode for performance optimization
   os.environ["PT_HPU_LAZY_MODE"] = "1"
 
+  # Initialize MPI for distributed training
   mpi_comm = MPI.COMM_WORLD
   size = mpi_comm.Get_size()
   rank = mpi_comm.Get_rank()
   
+  # Print out HPU details for the main process (rank 0)
   if rank == 0:
     print(f'Torch Version: {torch.__version__}')
     print(f'HPU is available: {ht.hpu.is_available()}')
@@ -59,19 +62,22 @@ if __name__ == '__main__':
     print(f'Current Device: {ht.hpu.current_device()}')
 
   print('INFO, train, size:',size,'rnk:',rank)
+  
+  # Set up the master address and port for distributed training
   if size >= 1:
     if os.getenv('MASTER_ADDR') is None:
       os.environ['MASTER_ADDR'] = 'localhost'
     if os.getenv('MASTER_POST') is None:
       os.environ['MASTER_POST'] = '12345'
 
+  # Initialize the process group for distributed training with Habana HCCL backend
   dist_backend = 'hccl'
   process_per_node = 8
   os.environ['ID'] = str(rank % process_per_node)
   os.environ['LOCAL_RANK'] = str(rank % process_per_node)
   torch.distributed.init_process_group(dist_backend, rank=rank, world_size=size)
 
-  # Import Data:
+  # Import and prepare training data
   if rank == 0:
     print('Importing Data...')
   train = utils.import_raw_data(args.train_data)
@@ -79,7 +85,7 @@ if __name__ == '__main__':
   train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
   train_loader = DataLoader(train_data, batch_size=args.batch_size, num_workers=0, sampler=train_sampler)
 
-  # Initialize Model:
+  # Initialize model and get input dimensions
   dims = utils.get_loader_dims3d(train_loader)
   
   if rank == 0:
@@ -88,19 +94,23 @@ if __name__ == '__main__':
       pickle.dump(dims, f)
     print('Initializing Model...')
 
+  # Instantiate the CNN model and move it to the HPU device
   CNN = model.CNNreg(dims).float().to(device)
-  '''if args.weights is not None:
-    CNN.load_state_dict(torch.load(args.weights))'''
+  
+  # Optionally load pre-trained weights
+  if args.weights is not None:
+    CNN.load_state_dict(torch.load(args.weights))
 
   if rank == 0:
-    print('Parallelizing Model...')
+    print('Distributing Model...')
 
+  # Wrap the model for distributed training
   CNN = torch.nn.parallel.DistributedDataParallel(CNN,
           bucket_cap_mb=100,
           broadcast_buffers=False,
           gradient_as_bucket_view=True)
 
-  # Train Model:
+  # Train the model:
   if rank == 0:
     print('Training Model...')
     start = time.time()

@@ -19,34 +19,24 @@ __license__ = 'MIT'
 ############################################################################
 ## Authors: Conner Swineford and Johanna Walker
 ## License: MIT License
-## Maintainer: Conner Swineford
 ## Email: cswineford@sdsu.edu
-## Status: Production
 ############################################################################
 
 
 def train_loop(dataloader, model, loss_fn, optimizer, device=torch.device('hpu')):
-  '''
-  This function performs a single training loop for one epoch of model training.
+  """
+  Performs one epoch of training for the given model.
 
-  Parameters:
+  Args:
+    dataloader (torch.utils.data.DataLoader): DataLoader providing the training data.
+    model (torch.nn.Module): The model to be trained.
+    loss_fn (callable): The loss function.
+    optimizer (torch.optim.Optimizer): The optimizer.
+    device (torch.device, optional): Device to run the training on. Default is 'hpu'.
 
-  dataloader (torch.utils.data.DataLoader): an iterable PyTorch dataloader object that provides access to the training data.
-  model (torch.nn.Module): an initialized PyTorch model to be trained.
-  loss_fn (callable): a function that defines the loss for the model.
-  optimizer (torch.optim.Optimizer): an optimizer that provides the algorithm for backpropagation.
-  
   Returns:
-
-  train_loss (float): the average loss within this epoch.
-
-  Usage:
-  Call this function within a training loop to train the model for one epoch. The function takes the dataloader, model, loss_fn,
-  and optimizer as input parameters. It then loops over the training data, computes the prediction and loss for each batch,
-  performs backpropagation, and updates the model weights. At the end of the epoch, it returns the average loss.
-
-  Note: The tqdm module is used to display a progress bar during training. It is not required for the function to run.
-  '''
+    float: Average training loss for the epoch.
+  """
   train_loss = 0.
   for i, (X, y, _) in enumerate(tqdm(dataloader, position=0, dynamic_ncols=True)):
     # Compute prediction and loss
@@ -65,28 +55,18 @@ def train_loop(dataloader, model, loss_fn, optimizer, device=torch.device('hpu')
 
 @torch.no_grad()
 def val_loop(dataloader, model, loss_fn, device=torch.device('hpu')):
-  '''
-  This function performs a validation loop to evaluate how well the model generalizes to new data.
+  """
+  Performs validation to evaluate model performance.
 
-  Parameters:
-
-   dataloader (torch.utils.data.DataLoader): an iterable PyTorch dataloader object that provides access to the validation data.
-   model (torch.nn.Module): an initialized PyTorch model to be evaluated.
-   loss_fn (callable): a function that defines the loss for the model.
+  Args:
+    dataloader (torch.utils.data.DataLoader): DataLoader providing the validation data.
+    model (torch.nn.Module): The model to be validated.
+    loss_fn (callable): The loss function.
+    device (torch.device, optional): Device to run the validation on. Default is 'hpu'.
 
   Returns:
-
-   val_loss (float): the average loss of the validation set.
- 
-  Usage:
-   Call this function after each training epoch to evaluate the performance of the model on a separate validation set. The function
-   takes the dataloader, model, and loss_fn as input parameters. It then loops over the validation data, computes the prediction
-   and loss for each batch, and calculates the average loss. Note that the function is decorated with @torch.no_grad() to ensure
-   that gradients are not calculated during validation, which would waste computational resources.
-
-  Note: The validation loop does not update the model weights, as it is only used for evaluation.
-  '''
-
+    tuple: Average validation loss and accuracy for the epoch.
+  """
   val_loss = 0.
   for X, y, _ in dataloader:
     # Compute prediction and loss

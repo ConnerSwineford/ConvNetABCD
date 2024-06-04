@@ -16,39 +16,28 @@ __email__ = 'cswineford@sdsu.edu'
 __license__ = 'MIT'
 
 ############################################################################
-## model.py : This file contains all the necessary classes and functions to
-## initialize the model.
+## model.py : This file contains all the necessary classes and functions for
+## the model.
 ############################################################################
 ## Authors: Conner Swineford and Johanna Walker
 ## License: MIT License
-## Maintainer: Conner Swineford
-## Email: cswineford@sdsu.edu
-## Status: Production
 ############################################################################
 
 
 def train_loop(dataloader, model, loss_fn, optimizer, device=torch.device('hpu')):
-  '''
-  This function performs a single training loop for one epoch of model training.
+  """
+  Training loop for the model.
 
-  Parameters:
+  Args:
+    dataloader (torch.utils.data.DataLoader): The dataloader for the training data.
+    model (torch.nn.Module): The model to train.
+    loss_fn (torch.nn.Module): The loss function.
+    optimizer (torch.optim.Optimizer): The optimizer.
+    device (torch.device, optional): The device to use for training. Defaults to HPU.
 
-  dataloader (torch.utils.data.DataLoader): an iterable PyTorch dataloader object that provides access to the training data.
-  model (torch.nn.Module): an initialized PyTorch model to be trained.
-  loss_fn (callable): a function that defines the loss for the model.
-  optimizer (torch.optim.Optimizer): an optimizer that provides the algorithm for backpropagation.
-  
   Returns:
-
-  train_loss (float): the average loss within this epoch.
-
-  Usage:
-  Call this function within a training loop to train the model for one epoch. The function takes the dataloader, model, loss_fn,
-  and optimizer as input parameters. It then loops over the training data, computes the prediction and loss for each batch,
-  performs backpropagation, and updates the model weights. At the end of the epoch, it returns the average loss.
-
-  Note: The tqdm module is used to display a progress bar during training. It is not required for the function to run.
-  '''
+    float: The average training loss.
+  """
   train_loss = 0.
   htcore.hpu.reset_peak_memory_stats()
   #mem_allocated = htcore.hpu.memory_allocated()
@@ -71,28 +60,18 @@ def train_loop(dataloader, model, loss_fn, optimizer, device=torch.device('hpu')
 
 @torch.no_grad()
 def val_loop(dataloader, model, loss_fn, device=torch.device('hpu')):
-  '''
-  This function performs a validation loop to evaluate how well the model generalizes to new data.
+  """
+  Validation loop for the model.
 
-  Parameters:
-
-   dataloader (torch.utils.data.DataLoader): an iterable PyTorch dataloader object that provides access to the validation data.
-   model (torch.nn.Module): an initialized PyTorch model to be evaluated.
-   loss_fn (callable): a function that defines the loss for the model.
+  Args:
+    dataloader (torch.utils.data.DataLoader): The dataloader for the validation data.
+    model (torch.nn.Module): The model to validate.
+    loss_fn (torch.nn.Module): The loss function.
+    device (torch.device, optional): The device to use for validation. Defaults to HPU.
 
   Returns:
-
-   val_loss (float): the average loss of the validation set.
- 
-  Usage:
-   Call this function after each training epoch to evaluate the performance of the model on a separate validation set. The function
-   takes the dataloader, model, and loss_fn as input parameters. It then loops over the validation data, computes the prediction
-   and loss for each batch, and calculates the average loss. Note that the function is decorated with @torch.no_grad() to ensure
-   that gradients are not calculated during validation, which would waste computational resources.
-
-  Note: The validation loop does not update the model weights, as it is only used for evaluation.
-  '''
-
+    float: The average validation loss.
+  """
   val_loss = 0.
   for X, y, _ in dataloader:
     # Compute prediction and loss
@@ -103,25 +82,18 @@ def val_loop(dataloader, model, loss_fn, device=torch.device('hpu')):
 
 
 class ConvBlock(nn.Module):
-  '''
-  This is a PyTorch module that defines a convolutional block used in the neural network. It applies depthwise convolution
-  followed by pointwise convolution, group normalization, GELU activation, and GRN (Global Response Normalization) layer. It
-  also includes drop path regularization to randomly drop out connections in the residual branch with a certain probability
-  during training.
+  """
+  Convolutional block with optional batch normalization and dropout.
 
-  Parameters:
-
-   in_channels: number of input channels
-   drop_path: dropout probability for drop path regularization. If 0 (default), no drop path is applied. If greater than 0,
-   a DropPath module is instantiated with the given dropout probability.
-
-  Methods:
-
-  forward(self, x):
-   x: input tensor of shape (N, C, H, W, D), where N is the batch size, C is the number of input channels, H is the height,
-    W is the width, and D is the depth. The tensor is passed through the convolutional block and returned as a tensor of the
-    same shape.
-  '''
+  Args:
+    in_channels (int): Number of input channels.
+    out_channels (int): Number of output channels.
+    kernel_size (int, optional): Size of the convolutional kernel. Defaults to 3.
+    stride (int, optional): Stride of the convolution. Defaults to 1.
+    padding (int, optional): Padding added to all four sides of the input. Defaults to 0.
+    norm (bool, optional): Whether to apply batch normalization. Defaults to False.
+    dropout (float, optional): Dropout rate. Defaults to 0.
+  """
   def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=0, norm=False, dropout=0.):
     super(ConvBlock, self).__init__()
     self.conv = nn.Conv3d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding)
@@ -130,6 +102,15 @@ class ConvBlock(nn.Module):
     self.drop = nn.Dropout3d(p=dropout)
 
   def forward(self, x):
+    """
+    Forward pass of the convolutional block.
+
+    Args:
+      x (torch.Tensor): Input tensor.
+
+    Returns:
+      torch.Tensor: Output tensor.
+    """
     x = self.conv(x)
     x = self.norm(x)
     x = self.relu(x)
@@ -139,6 +120,14 @@ class ConvBlock(nn.Module):
 
 
 class FCBlock(nn.Module):
+  """
+  Fully connected block with dropout.
+
+  Args:
+    in_channels (int): Number of input channels.
+    out_channels (int): Number of output channels.
+    drop (float, optional): Dropout rate. Defaults to 0.2.
+  """
   def __init__(self, in_channels, out_channels, drop=0.2):
     super(FCBlock, self).__init__()
     self.drop = nn.Dropout(drop)
@@ -146,15 +135,30 @@ class FCBlock(nn.Module):
     self.in_channels = in_channels
 
   def forward(self, x):
+    """
+    Forward pass of the fully connected block.
+
+    Args:
+      x (torch.Tensor): Input tensor.
+
+    Returns:
+      torch.Tensor: Output tensor.
+    """
     x = self.drop(x)
     x = x.narrow(1, 0, self.in_channels)
     x = self.fc(x)
     return x
 
 
-class CNNreg(nn.Module):
+class ConvNet(nn.Module):
+  """
+  Convolutional neural network.
+
+  Args:
+    dims (dict): Dictionary containing the dimensions of the input data.
+  """
   def __init__(self, dims):
-    super(CNNreg, self).__init__()
+    super(ConvNet, self).__init__()
     self.dims = dims
     self.gradients = None
     self.activations = None
@@ -174,13 +178,37 @@ class CNNreg(nn.Module):
     self.fc3 = FCBlock(500, 2)
 
   def gradients_hook(self, module, grad_inp, grad_out):
+    """
+    Hook to capture gradients during backpropagation.
+
+    Args:
+      module (torch.nn.Module): The module to which the hook is attached.
+      grad_inp (torch.Tensor): The gradients of the input.
+      grad_out (torch.Tensor): The gradients of the output.
+    """
     self.gradients = grad_out[0]
 
   def activations_hook(self, module, args, output):
+    """
+    Hook to capture activations during forward pass.
+
+    Args:
+      module (torch.nn.Module): The module to which the hook is attached.
+      args (torch.Tensor): The input arguments.
+      output (torch.Tensor): The output tensor.
+    """
     self.activations = output
 
   def forward(self, x):
+    """
+    Forward pass of the CNN.
 
+    Args:
+      x (torch.Tensor): Input tensor.
+
+    Returns:
+      torch.Tensor: Output tensor.
+    """
     x = self.conv1(x)
     x = self.conv2(x)
     x = self.conv3(x)
@@ -201,7 +229,20 @@ class CNNreg(nn.Module):
 
   def train(self, loader, epochs=10, loss_fn=nn.BCEWithLogitsLoss(), optimizer=Adam, learning_rate=0.00001, graph=True,
             seed=None, outdir='./', rank=0):
+    """
+    Train the CNN model.
 
+    Args:
+      loader (torch.utils.data.DataLoader): DataLoader for the training data.
+      epochs (int, optional): Number of epochs to train. Defaults to 10.
+      loss_fn (torch.nn.Module, optional): Loss function. Defaults to nn.BCEWithLogitsLoss().
+      optimizer (torch.optim.Optimizer, optional): Optimizer. Defaults to Adam.
+      learning_rate (float, optional): Learning rate. Defaults to 0.00001.
+      graph (bool, optional): Whether to plot loss graphs. Defaults to True.
+      seed (int, optional): Random seed for reproducibility. Defaults to None.
+      outdir (str, optional): Directory to save the model and loss values. Defaults to './'.
+      rank (int, optional): Rank of the process in distributed training. Defaults to 0.
+    """
     train_loss, val_loss = np.zeros(epochs + 1), np.zeros(epochs + 1)
 
     if type(seed) == int: torch.manual_seed(seed)
@@ -230,41 +271,19 @@ class CNNreg(nn.Module):
         np.save(os.path.join(outdir, 'train_loss.npy'), train_loss)
         np.save(os.path.join(outdir, 'val_loss.npy'), val_loss)
 
-  '''def eval(self, loader, loss_fn=nn.BCELoss(), get_preds=False):
-    preds, Y = np.array([]), np.array([])
-    for X_batch, Y_batch, _ in tqdm(loader, position=0, dynamic_ncols=True):
-      Y_batch = Y_batch.to(self.device)
-      X_batch = X_batch.to(self.device)
-      pred = self(X_batch)
-      pred = pred.detach().cpu().numpy()
-      preds = np.concatenate((preds, pred))
-      Y = np.concatenate((Y, Y_batch.detach().cpu().numpy()))
-
-    if get_preds:
-      return Y, preds
-
-    #print(loss_fn(torch.Tensor(preds), torch.Tensor(Y)))'''
-
-  '''def eval(self, loader, loss_fn=nn.MSELoss(), get_preds=False):
-    preds, Y = np.array([]), np.array([])
-    for X_batch, Y_batch, _ in tqdm(loader, position=0, dynamic_ncols=True):
-      Y_batch = Y_batch.to(self.device)
-      X_batch = X_batch.to(self.device)
-      pred = self(X_batch)
-      pred = torch.flatten(pred[:,0])
-      #pred = torch.flatten(self(X_batch)[:, 0])
-      preds = np.concatenate((preds, pred.detach().cpu().numpy()))
-      Y = np.concatenate((Y, Y_batch.detach().cpu().numpy()))
-
-    print(float(np.mean(np.absolute(preds-Y))**2))
-
-    #print(f'Evaluation Loss: {float(loss_fn(preds, Y)):>0.2f}')
-
-    if get_preds:
-      return Y, preds'''
 
   def HiResRAM(self, loader, loss_fn=nn.MSELoss(), rank=0):
-    # {'batch_size': 16, 'n_channels': 1, 'height': 71, 'width': 89, 'depth': 66}
+    """
+    Computes high-resolution region activation mapping (RAM).
+        
+    Args:
+      loader (torch.utils.data.DataLoader): The data loader.
+      loss_fn (callable): The loss function.
+      rank (int): Rank of the process for distributed training.
+        
+    Returns:
+      np.ndarray: The RAM values.
+    """
     m = np.empty((0, self.dims['height'], self.dims['width'], self.dims['depth']))
     for X_batch, Y_batch, _ in loader:
       X_batch = X_batch.to(self.device)
@@ -276,9 +295,3 @@ class CNNreg(nn.Module):
 
     return m
 
-      
-    '''m = m.cpu().numpy()
-    print(maps.shape)
-    m = utils.resize_volume(m)
-    print(maps.shape)
-    return m'''

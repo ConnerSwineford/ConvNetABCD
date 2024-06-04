@@ -13,45 +13,34 @@ __license__ = 'MIT'
 ## utils.py : This file contains several miscellaneous classes and functions
 ## for the scripts in this project.
 ############################################################################
-## Authors: Conner Swineford and Johanna Walker
+## Author: Conner Swineford and Johanna Walker
 ## License: MIT License
-## Maintainer: Conner Swineford
 ## Email: cswineford@sdsu.edu
-## Status: Production
 ############################################################################
 
 
 def nii_to_tensor(nifti):
-  '''
-  This function converts a NIfTI image to a PyTorch tensor.
-
-  Parameters:
-
-   nifti: A NIfTI image object
-  
-  Returns: A PyTorch tensor with shape (1, height, width, depth) where the first dimension is added
-           to match the expected input shape of the CNN model.
-  '''
+  """
+  Converts a NIfTI image to a PyTorch tensor.
+    
+  Args:
+    nifti (nib.Nifti1Image): The NIfTI image to be converted.
+        
+  Returns:
+    torch.Tensor: The image data as a PyTorch tensor.
+  """
   return torch.from_numpy(np.expand_dims(np.asarray(nifti.dataobj), axis=0))
 
 
 def import_raw_data(file_path):
   """
-  Reads in a CSV file from a given file path and returns it as a pandas DataFrame.
-
+  Imports raw data from a CSV file into a pandas DataFrame.
+    
   Args:
-   file_path (str): The file path of the CSV file to be imported.
-
+    file_path (str): The file path to the CSV file.
+        
   Returns:
-   pandas.DataFrame: The imported data as a pandas DataFrame.
-
-  Example:
-   >>> import_raw_data('data.csv')
-            ID  Age  Gender  ...
-        0   1   22   M       ...
-        1   2   35   F       ...
-        2   3   43   M       ...
-        ... ... ...  ...     ...
+    pd.DataFrame: The imported data as a pandas DataFrame.
   """
   SubjData = pd.read_csv(file_path, encoding='latin1')
   SubjData = pd.DataFrame(SubjData)
@@ -60,14 +49,14 @@ def import_raw_data(file_path):
 
 def get_loader_dims3d(loader):
   """
-  Gets the dimensions of the data in a 3D DataLoader.
-
-  Parameters:
-   loader (torch.utils.data.DataLoader): The DataLoader containing the data.
-
+  Retrieves the dimensions of the data from a data loader.
+    
+  Args:
+    loader (torch.utils.data.DataLoader): The data loader to inspect.
+        
   Returns:
-   dict: A dictionary containing the dimensions of the data in the DataLoader,
-         with keys 'batch_size', 'n_channels', 'height', 'width', and 'depth'.
+    dict: A dictionary containing the batch size, number of channels, 
+          height, width, and depth of the data.
   """
   for X, Y, _ in loader:
     dims = {
@@ -82,80 +71,63 @@ def get_loader_dims3d(loader):
 
 
 def get_time_str():
-  '''
-  This function returns a string containing the current date and time in the format of "yyyy_mm_dd_hhmm", 
-  where yyyy is the year, mm is the month (with leading zero), dd is the day (with leading zero),
-  hh is the hour (with leading zero), and mm is the minute (with leading zero).
-
-  Parameters: None
-
-  Returns: A string representing the current date and time in the format of "yyyy_mm_dd_hhmm".
-  '''
+  """
+  Gets the current time as a formatted string.
+    
+  Returns:
+    str: The current time in the format 'YYYY_MM_DD_HHMM'.
+  """
   return f'{localtime().tm_year}_{localtime().tm_mon:02d}_{localtime().tm_mday:02d}_{localtime().tm_hour:02d}{localtime().tm_min:02d}'
 
 
 class NiiDataset(torch.utils.data.Dataset):
   """
-    A PyTorch Dataset class for loading 3D medical images in NIfTI format.
-
-    Args:
-     paths (list): A list of file paths to NIfTI images
-     labels (list): A list of corresponding labels for each image
-     subjIDs (list): A list of corresponding subject IDs for each image
-
-    Methods:
-     __len__(self): Returns the length of the dataset (i.e. number of images)
-     __getitem__(self, idx): Returns a tuple containing a torch.Tensor of the image data, the corresponding label as
-                             a float, and the subject ID as a string. The image data is loaded from disk using the 
-                             nibabel library and converted to a torch.Tensor using the nii_to_tensor() function defined above.
-    """
+  A custom Dataset class for loading NIfTI images and their associated labels.
+    
+  Args:
+    paths (list of str): List of file paths to the NIfTI images.
+    labels (list of float): List of labels corresponding to the images.
+    subjIDs (list of str): List of subject IDs corresponding to the images.
+  """
   def __init__(self, paths, labels, subjIDs):
-    """
-    Initializes a new instance of the NiiDataset class.
-
-    Args:
-     paths (list): A list of file paths to NIfTI images
-     labels (list): A list of corresponding labels for each image
-     subjIDs (list): A list of corresponding subject IDs for each image
-    """
     self.images = [nib.load(image_path) for image_path in paths]
     self.targets = labels
     self.id = subjIDs
 
   def __len__(self):
     """
-    Returns the length of the dataset (i.e. number of images).
+    Returns the number of samples in the dataset.
+        
+    Returns:
+      int: The number of samples.
     """
     return len(self.images)
 
   def __getitem__(self, idx):
     """
-    Returns a tuple containing a torch.Tensor of the image data, the corresponding label as a float, and the subject
-    ID as a string. The image data is loaded from disk using the nibabel library and converted to a torch.Tensor
-    using the nii_to_tensor() function defined above.
-
+    Retrieves a sample and its label from the dataset.
+        
     Args:
-     idx (int): The index of the image to retrieve
-
+      idx (int): The index of the sample to retrieve.
+            
     Returns:
-     tuple: A tuple containing the image data as a torch.Tensor, the corresponding label as a float, and the
-            subject ID as a string.
-        """
+      tuple: A tuple containing the image tensor, label, and subject ID.
+    """
     if type(idx) == int:
       return nii_to_tensor(self.images[idx]), float(self.targets[idx]), self.id[idx]
 
 
 def compute_accuracy(true_values, predicted_values, alpha=0.1):
   """
-  Computes the accuracy of predicted values against true values given a threshold.
+  Computes the accuracy of predictions given true values and a tolerance level.
     
   Args:
-   true_values: A list of true values.
-   predicted_values: A list of predicted values.
-   alpha: A threshold value, default is 0.1.
-    
+    true_values (np.ndarray or torch.Tensor): The ground truth values.
+    predicted_values (np.ndarray or torch.Tensor): The predicted values.
+    alpha (float): The tolerance level for considering a prediction correct.
+        
   Returns:
-   A float value representing the accuracy of the predicted values.
+    float: The accuracy of the predictions.
   """
   acc = 0.
   for val in abs(true_values-predicted_values):
@@ -165,16 +137,18 @@ def compute_accuracy(true_values, predicted_values, alpha=0.1):
       acc += 1.
   return acc / len(true_values)
 
-'''class ReLUN(nn.Hardtanh):
-    def __init__(self, n_classes, inplace: bool = False):
-        super().__init__(0., n_classes, inplace)
-
-    def extra_repr(self) -> str:
-        inplace_str = 'inplace=True' if self.inplace else ''
-        return inplace_str'''
 
 def resize_volume(img, dims=(91, 109, 91)):
-
+  """
+  Resizes a 3D image volume to the specified dimensions.
+    
+  Args:
+    img (np.ndarray): The input 3D image volume.
+    dims (tuple of int): The desired dimensions (depth, width, height).
+        
+  Returns:
+    np.ndarray: The resized 3D image volume.
+  """
   desired_depth = dims[0]
   desired_width = dims[1]
   desired_height = dims[2]
@@ -193,3 +167,59 @@ def resize_volume(img, dims=(91, 109, 91)):
 
   img = ndimage.zoom(img, (depth_factor, width_factor, height_factor), order=1)
   return img
+
+def code_targets(inp:torch.Tensor):
+  """
+  Converts binary targets into one-hot encoded vectors.
+    
+  Args:
+    inp (torch.Tensor): The input tensor of binary targets.
+        
+  Returns:
+    torch.Tensor: The one-hot encoded target tensor.
+  """
+  out = torch.empty(inp.shape[0], 2)
+  for i in range(len(inp)):
+    if float(inp[i]) == 1.:
+      out[i] = torch.Tensor([0, 1])
+    if float(inp[i]) == 0.:
+      out[i] = torch.Tensor([1, 0])
+  return out
+
+def resize_image_3d(inp, target=(71, 89, 66)):
+  """
+  Resizes a 3D image to the specified target dimensions.
+    
+  Args:
+    inp (np.ndarray): The input 3D image.
+    target (tuple of int): The target dimensions (depth, width, height).
+        
+  Returns:
+    np.ndarray: The resized 3D image.
+  """
+  inp_dim = inp.shape
+  mult = (1, target[0]/inp_dim[1], target[1]/inp_dim[2], target[2]/inp_dim[3])
+  out = ndimage.zoom(inp, zoom=mult)
+  return out
+
+def pad_image(inp, a, p, t, b, l, r):
+  """
+  Pads a 3D image with zeros on specified sides.
+    
+  Args:
+    inp (np.ndarray): The input 3D image.
+    a (int): Padding to add to the anterior side.
+    p (int): Padding to add to the posterior side.
+    t (int): Padding to add to the top side.
+    b (int): Padding to add to the bottom side.
+    l (int): Padding to add to the left side.
+    r (int): Padding to add to the right side.
+        
+  Returns:
+    np.ndarray: The padded 3D image.
+  """
+  cor,sag,tran = inp.shape
+  padded = np.zeros((l + cor + r, p + sag + a, b + tran + t))
+  padded[l:cor+l, p:sag+p, b:tran+b] = inp
+  return padded
+
