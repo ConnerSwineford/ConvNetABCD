@@ -8,6 +8,19 @@ This repository contains scripts to train, evaluate, and utilize a 3D Convolutio
 
 ## Getting Started
 
+### Data
+
+The way these scripts are configured requires the dataset be in the form of a csv organized similarly to the following:
+```
+| SubjectID | targets |        NiiPath       |
+|-----------|---------|----------------------|
+|  SUBJ001  |    0    | /path/to/SUBJ001.nii |
+|  SUBJ002  |    1    | /path/to/SUBJ002.nii |
+|  SUBJ003  |    0    | /path/to/SUBJ003.nii |
+```
+For the sake of consistency of training, the full dataset should split training and test into their own CSVs. 
+Additionally, the evaluation script also requires the file `affine.npy` containing the affine information for the NII images. More informations on these affines can be found [here](https://nipy.org/nibabel/coordinate_systems.html).
+
 ### Installation
 
 Clone the repository and navigate to the project directory:
@@ -39,7 +52,7 @@ To evaluate the model, run:
 python evaluate.py --data_path /path/to/dataframe.csv --weights ./output/model_weights.pth --outdir ./evaluation_output --workers 4
 ```
 
-## Files and Scripts
+## Scripts
 
 ### 1. `train.py`
 This script handles the training process of the 3D CNN model.
